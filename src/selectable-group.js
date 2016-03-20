@@ -4,6 +4,33 @@ import isNodeInRoot from './nodeInRoot';
 import getBoundsForNode from './getBoundsForNode';
 import doObjectsCollide from './doObjectsCollide';
 
+
+function getNumericStyleProperty(style, prop){
+    return parseInt(style.getPropertyValue(prop),10) ;
+}
+
+function element_position(e) {
+    var x = 0, y = 0;
+    var inner = true ;
+    do {
+        x += e.offsetLeft;
+        y += e.offsetTop;
+        var style = getComputedStyle(e,null) ;
+        var borderTop = getNumericStyleProperty(style,"border-top-width") ;
+        var borderLeft = getNumericStyleProperty(style,"border-left-width") ;
+        y += borderTop ;
+        x += borderLeft ;
+        if (inner){
+          var paddingTop = getNumericStyleProperty(style,"padding-top") ;
+          var paddingLeft = getNumericStyleProperty(style,"padding-left") ;
+          y += paddingTop ;
+          x += paddingLeft ;
+        }
+        inner = false ;
+    } while (e = e.offsetParent);
+    return { x: x, y: y };
+}
+
 class SelectableGroup extends React.Component {
 
 
@@ -13,7 +40,7 @@ class SelectableGroup extends React.Component {
 		this.state = {
 			isBoxSelecting: false,
 			boxWidth: 0,
-			boxHeight: 0			
+			boxHeight: 0
 		}
 
 		this._mouseDownData = null;
@@ -39,15 +66,15 @@ class SelectableGroup extends React.Component {
 
 
 	componentDidMount () {
-		ReactDOM.findDOMNode(this).addEventListener('mousedown', this._mouseDown);		
+		ReactDOM.findDOMNode(this).addEventListener('mousedown', this._mouseDown);
 	}
-	
 
-	/**	 
+
+	/**
 	 * Remove global event listeners
 	 */
-	componentWillUnmount () {		
-		ReactDOM.findDOMNode(this).removeEventListener('mousedown', this._mouseDown);		
+	componentWillUnmount () {
+		ReactDOM.findDOMNode(this).removeEventListener('mousedown', this._mouseDown);
 	}
 
 
@@ -65,19 +92,25 @@ class SelectableGroup extends React.Component {
 	 * Called while moving the mouse with the button down. Changes the boundaries
 	 * of the selection box
 	 */
-	_openSelector (e) {		
-	    const w = Math.abs(this._mouseDownData.initialW - e.pageX);
-	    const h = Math.abs(this._mouseDownData.initialH - e.pageY);
+	 _openSelector (e) {
+		 const p = element_position(e.target);
 
-	    this.setState({
-	    	isBoxSelecting: true,
-	    	boxWidth: w,
-	    	boxHeight: h,
-	    	boxLeft: Math.min(e.pageX, this._mouseDownData.initialW),
-	    	boxTop: Math.min(e.pageY, this._mouseDownData.initialH)
-	    });
-	}
+ 	    const w = Math.abs(this._mouseDownData.initialX - e.pageX);
+ 	    const h = Math.abs(this._mouseDownData.initialY - e.pageY);
 
+
+			// e.target.offset/
+			// console.log(e.pageX - p.x);
+			// console.log(e.pageY - p.y);
+
+ 	    this.setState({
+ 	    	isBoxSelecting: true,
+ 	    	boxWidth: w,
+ 	    	boxHeight: h,
+ 	    	boxLeft: this._mouseDownData.initialW,
+ 	    	boxTop: this._mouseDownData.initialH
+ 	    });
+ 	}
 
 	/**
 	 * Called when a user presses the mouse button. Determines if a select box should
@@ -85,13 +118,13 @@ class SelectableGroup extends React.Component {
 	 */
 	_mouseDown (e) {
 		const node = ReactDOM.findDOMNode(this);
-		let collides, offsetData, distanceData;		
+		let collides, offsetData, distanceData;
 		ReactDOM.findDOMNode(this).addEventListener('mouseup', this._mouseUp);
-		
+
 		// Right clicks
 		if(e.which === 3 || e.button === 2) return;
 
-		if(!isNodeInRoot(e.target, node)) {	
+		if(!isNodeInRoot(e.target, node)) {
 			offsetData = getBoundsForNode(node);
 			collides = doObjectsCollide(
 				{
@@ -108,14 +141,19 @@ class SelectableGroup extends React.Component {
 				}
 			);
 			if(!collides) return;
-		} 		
+		}
 
-		this._mouseDownData = {			
+		const p = element_position(e.target);
+
+		this._mouseDownData = {
 			boxLeft: e.pageX,
 			boxTop: e.pageY,
-	        initialW: e.pageX,
-        	initialH: e.pageY        	
-		};		
+			initialX: e.pageX,
+			initialY: e.pageY,
+      initialW: e.pageX - p.x,
+    	initialH: e.pageY - p.y
+		};
+
 
 		e.preventDefault();
 
@@ -131,8 +169,8 @@ class SelectableGroup extends React.Component {
 	    ReactDOM.findDOMNode(this).removeEventListener('mouseup', this._mouseUp);
 
 	    if(!this._mouseDownData) return;
-	    
-		return this._selectElements(e);			
+
+		return this._selectElements(e);
 	}
 
 
@@ -140,26 +178,13 @@ class SelectableGroup extends React.Component {
 	 * Selects multiple children given x/y coords of the mouse
 	 */
 	_selectElements (e) {
-	    this._mouseDownData = null;
-	    const currentItems = [],
-		      selectbox = ReactDOM.findDOMNode(this.refs.selectbox),
-		      {tolerance} = this.props;
 
-		if(!selectbox) return;
-		
-		this._registry.forEach(itemData => {			
-			if(itemData.domNode && doObjectsCollide(selectbox, itemData.domNode, tolerance)) {
-				currentItems.push(itemData.key);
-			}
-		});
-
+		this.props.onSelection(this.state);
 		this.setState({
 			isBoxSelecting: false,
 			boxWidth: 0,
 			boxHeight: 0
 		});
-
-		this.props.onSelection(currentItems);
 	}
 
 
@@ -184,11 +209,11 @@ class SelectableGroup extends React.Component {
 			border: '1px dashed #999',
 			width: '100%',
 			height: '100%',
-			float: 'left'			
+			float: 'left'
 		};
 
 		return (
-			<this.props.component {...this.props}>				
+			<this.props.component {...this.props}>
 				{this.state.isBoxSelecting &&
 				  <div style={boxStyle} ref="selectbox"><span style={spanStyle}></span></div>
 				}
@@ -201,19 +226,19 @@ class SelectableGroup extends React.Component {
 SelectableGroup.propTypes = {
 
 	/**
-	 * Event that will fire when items are selected. Passes an array of keys		 
+	 * Event that will fire when items are selected. Passes an array of keys
 	 */
 	onSelection: React.PropTypes.func,
-	
+
 	/**
-	 * The component that will represent the Selectable DOM node		 
+	 * The component that will represent the Selectable DOM node
 	 */
 	component: React.PropTypes.node,
-	
+
 	/**
 	 * Amount of forgiveness an item will offer to the selectbox before registering
-	 * a selection, i.e. if only 1px of the item is in the selection, it shouldn't be 
-	 * included.		 
+	 * a selection, i.e. if only 1px of the item is in the selection, it shouldn't be
+	 * included.
 	 */
 	tolerance: React.PropTypes.number,
 

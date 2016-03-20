@@ -80,11 +80,11 @@ return /******/ (function(modules) { // webpackBootstrap
 
 	'use strict';
 
-	var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
 	Object.defineProperty(exports, "__esModule", {
 		value: true
 	});
+
+	var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
 
 	var _react = __webpack_require__(2);
 
@@ -113,6 +113,33 @@ return /******/ (function(modules) { // webpackBootstrap
 	function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
 
 	function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
+
+	function getNumericStyleProperty(style, prop) {
+		return parseInt(style.getPropertyValue(prop), 10);
+	}
+
+	function element_position(e) {
+		var x = 0,
+		    y = 0;
+		var inner = true;
+		do {
+			x += e.offsetLeft;
+			y += e.offsetTop;
+			var style = getComputedStyle(e, null);
+			var borderTop = getNumericStyleProperty(style, "border-top-width");
+			var borderLeft = getNumericStyleProperty(style, "border-left-width");
+			y += borderTop;
+			x += borderLeft;
+			if (inner) {
+				var paddingTop = getNumericStyleProperty(style, "padding-top");
+				var paddingLeft = getNumericStyleProperty(style, "padding-left");
+				y += paddingTop;
+				x += paddingLeft;
+			}
+			inner = false;
+		} while (e = e.offsetParent);
+		return { x: x, y: y };
+	}
 
 	var SelectableGroup = function (_React$Component) {
 		_inherits(SelectableGroup, _React$Component);
@@ -156,7 +183,7 @@ return /******/ (function(modules) { // webpackBootstrap
 				_reactDom2.default.findDOMNode(this).addEventListener('mousedown', this._mouseDown);
 			}
 
-			/**	 
+			/**
 	   * Remove global event listeners
 	   */
 
@@ -186,15 +213,21 @@ return /******/ (function(modules) { // webpackBootstrap
 		}, {
 			key: '_openSelector',
 			value: function _openSelector(e) {
-				var w = Math.abs(this._mouseDownData.initialW - e.pageX);
-				var h = Math.abs(this._mouseDownData.initialH - e.pageY);
+				var p = element_position(e.target);
+
+				var w = Math.abs(this._mouseDownData.initialX - e.pageX);
+				var h = Math.abs(this._mouseDownData.initialY - e.pageY);
+
+				// e.target.offset/
+				// console.log(e.pageX - p.x);
+				// console.log(e.pageY - p.y);
 
 				this.setState({
 					isBoxSelecting: true,
 					boxWidth: w,
 					boxHeight: h,
-					boxLeft: Math.min(e.pageX, this._mouseDownData.initialW),
-					boxTop: Math.min(e.pageY, this._mouseDownData.initialH)
+					boxLeft: this._mouseDownData.initialW,
+					boxTop: this._mouseDownData.initialH
 				});
 			}
 
@@ -207,9 +240,9 @@ return /******/ (function(modules) { // webpackBootstrap
 			key: '_mouseDown',
 			value: function _mouseDown(e) {
 				var node = _reactDom2.default.findDOMNode(this);
-				var collides = undefined,
-				    offsetData = undefined,
-				    distanceData = undefined;
+				var collides = void 0,
+				    offsetData = void 0,
+				    distanceData = void 0;
 				_reactDom2.default.findDOMNode(this).addEventListener('mouseup', this._mouseUp);
 
 				// Right clicks
@@ -231,11 +264,15 @@ return /******/ (function(modules) { // webpackBootstrap
 					if (!collides) return;
 				}
 
+				var p = element_position(e.target);
+
 				this._mouseDownData = {
 					boxLeft: e.pageX,
 					boxTop: e.pageY,
-					initialW: e.pageX,
-					initialH: e.pageY
+					initialX: e.pageX,
+					initialY: e.pageY,
+					initialW: e.pageX - p.x,
+					initialH: e.pageY - p.y
 				};
 
 				e.preventDefault();
@@ -265,26 +302,13 @@ return /******/ (function(modules) { // webpackBootstrap
 		}, {
 			key: '_selectElements',
 			value: function _selectElements(e) {
-				this._mouseDownData = null;
-				var currentItems = [];
-				var selectbox = _reactDom2.default.findDOMNode(this.refs.selectbox);
-				var tolerance = this.props.tolerance;
 
-				if (!selectbox) return;
-
-				this._registry.forEach(function (itemData) {
-					if (itemData.domNode && (0, _doObjectsCollide2.default)(selectbox, itemData.domNode, tolerance)) {
-						currentItems.push(itemData.key);
-					}
-				});
-
+				this.props.onSelection(this.state);
 				this.setState({
 					isBoxSelecting: false,
 					boxWidth: 0,
 					boxHeight: 0
 				});
-
-				this.props.onSelection(currentItems);
 			}
 
 			/**
@@ -333,19 +357,19 @@ return /******/ (function(modules) { // webpackBootstrap
 	SelectableGroup.propTypes = {
 
 		/**
-	  * Event that will fire when items are selected. Passes an array of keys		 
+	  * Event that will fire when items are selected. Passes an array of keys
 	  */
 		onSelection: _react2.default.PropTypes.func,
 
 		/**
-	  * The component that will represent the Selectable DOM node		 
+	  * The component that will represent the Selectable DOM node
 	  */
 		component: _react2.default.PropTypes.node,
 
 		/**
 	  * Amount of forgiveness an item will offer to the selectbox before registering
-	  * a selection, i.e. if only 1px of the item is in the selection, it shouldn't be 
-	  * included.		 
+	  * a selection, i.e. if only 1px of the item is in the selection, it shouldn't be
+	  * included.
 	  */
 		tolerance: _react2.default.PropTypes.number,
 
@@ -496,11 +520,11 @@ return /******/ (function(modules) { // webpackBootstrap
 
 	'use strict';
 
-	var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
 	Object.defineProperty(exports, "__esModule", {
 		value: true
 	});
+
+	var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
 
 	var _react = __webpack_require__(2);
 
